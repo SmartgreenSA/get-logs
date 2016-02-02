@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+#
+# Author: Bruno E O Meneguele <bruno.meneguele@smartgreen.net>
+# Company: Smartgreen S.A.
+
 import os
 import re
 import socket
@@ -35,16 +40,15 @@ class LogParser(object):
 
         self.output_name = output_name
 
-        # Get all files with the same prefix (lpre) in case * is passed as part
-        # of any log_prefix argument
+        # Get all files with the same prefix (lpre) in case * is passed as part of any log_prefix argument
         aux_files = []
 
         for lfile in self.log_files:
             if lfile.count('*'):
                 lpre, _ = lfile.split('*', 1)
 
-                for f in os.listdir(self.log_dir):
-                    matches = re.search(r'({}.*)'.format(lpre), f)
+                for files in os.listdir(self.log_dir):
+                    matches = re.match(r'({}.*)'.format(lpre), files)
 
                     if not matches:
                         continue
@@ -58,14 +62,25 @@ class LogParser(object):
         self.log_paths = [os.path.join(self.log_dir, lfile) for lfile in self.log_files]
         self.bkp_files_path = tempfile.mkdtemp()
 
-        print "INFO: start date is {0}, end date is {1}".format(*self.date_range)
-        print "INFO: start time is {0}, end time is {1}".format(*self.time_range)
-        print "INFO: log files: {0}".format(self.log_files)
-        print "INFO: output file: {0}".format(self.output_name)
+        self.print_infos()
 
     @staticmethod
     def _sgcon_get_hostname():
         return socket.gethostname()
+
+    def print_infos(self):
+        if self.date_range:
+            print "INFO: start date is {0}, end date is {1}".format(*self.date_range)
+
+        if self.time_range:
+            print "INFO: start time is {0}, end time is {1}".format(*self.time_range)
+
+        print "INFO: log files:"
+
+        for log in self.log_files:
+            print "    {}".format(log)
+
+        print "INFO: output file: {0}".format(self.output_name)
 
     # Log line example:
     def search_logs(self):
@@ -74,37 +89,45 @@ class LogParser(object):
         "2016-01-25 11:13:21,330 PowerMonitor INFO MainThread Service stopped."
         """
 
-        re_date = re.compile(r'(\d{4}-\d{2}-\d{2})')
-        re_time = re.compile(r'(\d{2}:\d{2}:\d{2})')
+        # Regular expression to match both date and time information at once, naming its presence group as <date> and
+        # <time>. Date and time must have the pre defined formats used here.
+        re_date_time = re.compile(r'(?P<date>\d{4}-\d{2}-\d{2})\s*(?P<time>\d{2}:\d{2}:\d{2})')
         bkp_files = set()
 
+        # Check for every log file present in the log_dir
         for log_path in self.log_paths:
             m_lines = []
 
-            with open(log_path) as log:
+            with open(log_path, 'r') as log:
                 flines = log.readlines()
 
                 for line in flines:
-                    m_date = re_date.match(line) if self.date_range else None
-                    m_time = re_time.search(line) if self.time_range else None
+                    m_date_time = re_date_time.match(line)
+                    m_date = m_date_time.group('date') if self.date_range and m_date_time else None
+                    m_time = m_date_time.group('time') if self.time_range and m_date_time else None
 
+                    # Rules to handle user specific date and/or time ranges.
                     if m_date and m_time:
-                        m_date_value = int(''.join(m_date.group(0).split('-', 2)))
-                        m_time_value = int(''.join(m_time.group(0).split(':', 3)))
+                        m_date_value = int(''.join(m_date.split('-', 2)))
+                        m_time_value = int(''.join(m_time.split(':', 3)))
 
                         if self.date_range[0] <= m_date_value <= self.date_range[1] and \
                                 self.time_range[0] <= m_time_value <= self.time_range[1]:
                             m_lines.append(line)
+                        elif m_date_value > self.date_range[1] or m_time_value > self.time_range[1]:
+                            break
                     elif not m_date and m_time:
-                        m_time_value = int(''.join(m_time.group(0).split(':', 3)))
+                        m_time_value = int(''.join(m_time.split(':', 3)))
 
                         if self.time_range[0] <= m_time_value <= self.time_range[1]:
                             m_lines.append(line)
                     elif m_date and not m_time:
-                        m_date_value = int(''.join(m_date.group(0).split('-', 2)))
+                        m_date_value = int(''.join(m_date.split('-', 2)))
 
                         if self.date_range[0] <= m_date_value <= self.date_range[1]:
                             m_lines.append(line)
+                        elif m_date_value > self.date_range[1]:
+                            break
 
             if m_lines:
                 tmp = '{}.log'.format(os.path.join(self.bkp_files_path, os.path.basename(log_path).split('.')[0]))
@@ -140,7 +163,7 @@ if __name__ == '__main__':
                         dest='time_range',
                         type=str,
                         default='',
-                        help="Set the time range from the begining to the end. Example: 00:00:00,23:59:59"
+                        help="Set the time range from the beginning to the end. Example: 00:00:00,23:59:59"
                         )
 
     parser.add_argument('-p',
@@ -168,6 +191,10 @@ if __name__ == '__main__':
                         )
 
     args = parser.parse_args()
+
+    if not args.time_range and not args.date_range:
+        parser.error("you must set at least a date or time range.")
+        exit(1)
 
     log_parser = LogParser(
         args.date_range,
