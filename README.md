@@ -23,7 +23,7 @@ optional arguments:
   -o OUTPUT_NAME     Output TAR filename.
 
   
-$ python get-logs.py -p powerMonitorInfo.log -d '2016-01-25,2016-01-26'`
+$ python get-logs.py -p powerMonitorInfo.log -d '2016-01-25,2016-01-26'
 ```
 
 
