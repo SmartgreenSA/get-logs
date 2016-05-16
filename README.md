@@ -14,7 +14,7 @@ Get any log based in the Python 'logging' module from a date and time range
 optional arguments:
   -h, --help         show this help message and exit
   -d DATE_RANGE      Set the date range from the beginning to the end.
-                     Example: 01-01-2010,31-12-2015
+                     Example: 2010-01-01,2015-12-31
   -t TIME_RANGE      Set the time range from the beginning to the end.
                      Example: 00:00:00,23:59:59
   -p LOG_PREFIX      Get logs based on its name prefix. Example:
